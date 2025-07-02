@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Image from "next/image";
+import { supabase } from "../../utils/supabaseClient";
 import { Chewy } from "next/font/google";
 import Link from "next/link";
 
@@ -21,16 +21,15 @@ export default function ProfilePage() {
   useEffect(() => {
     const allLikes = JSON.parse(localStorage.getItem("likes") || "[]");
     const liked = allLikes.filter((l: any) => l.wallet === wallet);
+    setLikedMemes(liked);
 
     const allSent = JSON.parse(localStorage.getItem("sentMemes") || "[]");
     const received = allSent.filter((m: any) => m.to === wallet);
-
-    setLikedMemes(liked);
     setReceivedMemes(received);
   }, [wallet]);
 
   return (
-    <div
+    <main
       style={{
         padding: "2rem",
         backgroundColor: "#BB00FF",
@@ -60,28 +59,27 @@ export default function ProfilePage() {
       <h2>❤️ Liked Memes</h2>
       {likedMemes.length === 0 ? <p>No liked memes yet.</p> : null}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
-      {likedMemes.map((l, idx) => (
-  <div
-    key={idx}
-    style={{
-      backgroundColor: "black",
-      padding: "0.5rem",
-      borderRadius: "8px",
-      width: "150px",
-    }}
-  >
-    <Image
-      src={l.url || "/default.png"}
-      alt="Meme"
-      width={150}
-      height={150}
-      style={{ borderRadius: "6px", objectFit: "cover" }}
-    />
-    <p style={{ color: "#BB00FF", fontSize: "0.8rem", marginTop: "0.5rem" }}>
-      {l.caption || "No description"}
-    </p>
-  </div>
-))}
+        {likedMemes.map((l, idx) => (
+          <div
+            key={idx}
+            style={{
+              backgroundColor: "black",
+              padding: "0.5rem",
+              borderRadius: "8px",
+              width: "150px",
+            }}
+          >
+            <img
+              src={l.url || "/default.png"}
+              alt="Meme"
+              style={{
+                width: "100%",
+                borderRadius: "6px",
+                objectFit: "cover",
+              }}
+            />
+          </div>
+        ))}
       </div>
 
       <h2 style={{ marginTop: "2rem" }}>📬 Received Memes</h2>
@@ -110,6 +108,6 @@ export default function ProfilePage() {
           </div>
         ))}
       </div>
-    </div>
+    </main>
   );
 }

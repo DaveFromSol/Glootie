@@ -1,155 +1,140 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
+import { useState } from "react";
+import { supabase } from "../utils/supabaseClient";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { Chewy } from "next/font/google";
+import Link from "next/link";
+import dynamic from "next/dynamic";
 
 const chewy = Chewy({
   weight: "400",
   subsets: ["latin"],
 });
 
+const WalletMultiButton = dynamic(
+  async () => (await import("@solana/wallet-adapter-react-ui")).WalletMultiButton,
+  { ssr: false }
+);
+
 export default function UploadPage() {
-  const [description, setDescription] = useState("");
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const maxChars = 50; // ✅ 50 char limit
+  const { publicKey } = useWallet();
+  const [file, setFile] = useState<File | null>(null);
+  const [caption, setCaption] = useState("");
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const previewUrl = URL.createObjectURL(file);
-      setImagePreview(previewUrl);
-    }
-  };
-
-  const handleDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.value.length <= maxChars) {
-      setDescription(e.target.value);
-    }
-  };
-
-  const handlePost = () => {
-    if (!imagePreview || !description) {
-      alert("Please add an image and description first!");
+  async function handleUpload() {
+    if (!file || !caption.trim() || !publicKey) {
+      alert("Please connect wallet, select a file, and add a caption first!");
       return;
     }
 
-    alert("Your meme has been posted! 😎 (Not actually saved yet)");
+    const walletAddress = publicKey.toBase58();
+    const filePath = `${Date.now()}_${file.name}`;
 
-    // Clear form
-    setDescription("");
-    setImagePreview(null);
-  };
+    // Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from("memes")
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error("Upload error:", uploadError);
+      alert("Failed to upload image.");
+      return;
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from("memes")
+      .getPublicUrl(filePath);
+
+    const imageUrl = urlData.publicUrl;
+
+    // Insert meme data into table
+    const { error: insertError } = await supabase.from("memes").insert([
+      {
+        image_url: imageUrl,
+        caption: caption,
+        wallet: walletAddress,
+        likes: 0,
+      },
+    ]);
+
+    if (insertError) {
+      console.error("Insert error:", insertError);
+      alert("Failed to save meme data: " + insertError.message);
+      return;
+    }
+
+    alert("Meme uploaded successfully!");
+    setFile(null);
+    setCaption("");
+  }
 
   return (
-    <div
+    <main
       style={{
         padding: "2rem",
         textAlign: "center",
         backgroundColor: "#BB00FF",
         minHeight: "100vh",
       }}
+      className={chewy.className}
     >
-      <h1
-        className={chewy.className}
-        style={{
-          color: "black",
-          fontSize: "2rem",
-          marginBottom: "1rem",
-          fontWeight: "bold",
-        }}
-      >
-        Upload a Meme
+      <WalletMultiButton />
+      <h1 style={{ marginTop: "2rem", color: "black", fontSize: "2.5rem", fontWeight: "bold" }}>
+        Upload Meme
       </h1>
-      <input
-        type="text"
-        placeholder={`Enter meme description (max ${maxChars} chars)`}
-        value={description}
-        onChange={handleDescriptionChange}
-        className={chewy.className}
-        style={{
-          padding: "6px 10px",
-          borderRadius: "6px",
-          border: "2px solid black",
-          outline: "none",
-          width: "250px",
-          marginBottom: "0.5rem",
-        }}
-      />
-      <div
-        className={chewy.className}
-        style={{ color: "black", marginBottom: "1rem", fontSize: "0.9rem" }}
-      >
-        {description.length}/{maxChars} characters
-      </div>
+
       <input
         type="file"
         accept="image/*"
-        onChange={handleFileChange}
+        onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}
+        style={{ marginTop: "1rem" }}
+      />
+      <br />
+      <input
+        type="text"
+        placeholder="Caption (max 50 chars)"
+        value={caption}
+        onChange={(e) => setCaption(e.target.value)}
+        maxLength={50}
         style={{
-          marginBottom: "1rem",
+          marginTop: "1rem",
+          padding: "0.5rem",
+          width: "250px",
+          borderRadius: "6px",
+          border: "none",
         }}
       />
-      {imagePreview && (
-        <div>
-          <img
-            src={imagePreview}
-            alt="Preview"
-            style={{
-              width: "300px",
-              margin: "1rem auto",
-              borderRadius: "10px",
-              boxShadow: "0 8px 20px rgba(0,0,0,0.3)",
-            }}
-          />
-          <p
-            className={chewy.className}
-            style={{
-              color: "#BB00FF",
-              backgroundColor: "black",
-              padding: "6px 10px",
-              borderRadius: "6px",
-              display: "inline-block",
-              marginTop: "0.5rem",
-              fontWeight: "bold",
-            }}
-          >
-            {description}
-          </p>
-        </div>
-      )}
       <br />
       <button
-        onClick={handlePost}
-        className={chewy.className}
+        onClick={handleUpload}
         style={{
+          marginTop: "1rem",
           backgroundColor: "black",
           color: "#BB00FF",
           padding: "10px 20px",
           borderRadius: "8px",
-          border: "none",
           fontWeight: "bold",
           cursor: "pointer",
-          marginBottom: "1rem",
+          border: "none",
         }}
       >
-        Post Meme
+        Upload
       </button>
       <br />
       <Link
         href="/"
-        className={chewy.className}
         style={{
-          color: "#BB00FF",
-          backgroundColor: "black",
-          padding: "10px 20px",
-          borderRadius: "8px",
+          display: "inline-block",
+          marginTop: "1rem",
+          color: "black",
           textDecoration: "none",
           fontWeight: "bold",
         }}
       >
-        Back to Meme Swipe
+        ← Back to Home
       </Link>
-    </div>
+    </main>
   );
 }
